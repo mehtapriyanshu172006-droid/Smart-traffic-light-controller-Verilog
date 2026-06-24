@@ -1,4 +1,4 @@
-### Smart Traffic Light Controller using Verilog HDL
+#### Smart Traffic Light Controller using Verilog HDL
 
 This project implements a Smart Traffic Light Controller using Verilog HDL based on a Finite State Machine (FSM) architecture. The controller manages traffic flow at a two-way intersection using timer-based signal transitions, vehicle detection sensors, and emergency vehicle handling logic.
 
