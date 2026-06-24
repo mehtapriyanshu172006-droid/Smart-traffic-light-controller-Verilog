@@ -1,0 +1,197 @@
+`timescale 1ns/1ps
+module traffic_controller(
+
+    input clk,
+    input areset,
+
+    input sensor_NS,
+    input sensor_EW,
+
+    input emergency_NS,
+    input emergency_EW,
+
+    output reg NS_green,
+    output reg NS_yellow,
+    output reg NS_red,
+
+    output reg EW_green,
+    output reg EW_yellow,
+    output reg EW_red
+
+);
+  // state encoding to store the fsm states as physically in the memory storages in the form of sequence of bits.
+  parameter S0=3'd0; //normal state
+  parameter S1=3'd1; // transition state
+  parameter S2=3'd2; // normal state
+  parameter S3=3'd3; // transition state
+  parameter S4=3'd4; // emergency state
+  parameter S5=3'd5; // emergency state
+  parameter no_bits=3'd3;
+  
+  // state decalring  as a 3bit reg vector 
+  reg [2:0] state,next_state;
+  
+  // declare a count of 6 bits that count from 0 to 49 and then roll over to 0
+  reg [5:0] count;
+  
+  // declare a reset pin to countor
+  wire reset;
+  
+  // Next state Logc - Combinational logic 
+  always @(*)
+    begin
+      // implementing state tranistion logic into HDL 
+      case(state)
+      S0:begin
+        casex({emergency_NS,emergency_EW})
+        2'b1x: next_state<=S4;
+        2'b01: next_state<=S5;
+        default:begin
+          // here sensor matters 
+          case(sensor_EW)
+            1'd1: begin 
+              if(count<6'd49)  
+                  next_state<=S0;
+              else
+                 next_state<=S1;
+            end
+          default:begin
+                   if(count<6'd49)  
+                     next_state<=S0;
+                   else
+                     next_state<=S0;
+          end
+          endcase
+        end
+        endcase
+      end
+        S1:begin
+           casex({emergency_NS,emergency_EW})
+           2'b1x: next_state<=S4;
+           2'b01: next_state<=S5;
+           default:begin
+                  
+             // here sensors not matter whether it detect car or not othwersie it comes weird to look
+             if(count<6'd19)
+                next_state<=S1;
+             else
+                next_state<=S2;
+           end
+           endcase
+        end
+              
+        S2: begin
+           casex({emergency_NS,emergency_EW})
+           2'b1x: next_state<=S4;
+           2'b01: next_state<=S5;
+           default:begin
+             // sensors matter symmteric to S0 state
+             case(sensor_NS)
+             1'd1:begin
+               if(count<6'd49)
+                   next_state<=S2;
+               else
+                   next_state<=S3;
+             end
+             default:begin
+               if(count<6'd49)
+                 next_state<=S2;
+               else
+                  next_state<=S2;
+               end
+             endcase
+           end
+           endcase
+        end
+           
+        S3: begin
+           casex({emergency_NS,emergency_EW})
+           2'b1x: next_state<=S4;
+           2'b01: next_state<=S5;
+           default:begin
+                  
+             // here sensors  too not matter whether it detect car or not othwersie it comes weird to look
+             if(count<6'd19)
+                next_state<=S3;
+             else
+                next_state<=S0;
+           end
+           endcase
+        end
+           
+        S4:begin
+            casex({emergency_NS,emergency_EW})
+           2'b1x: next_state<=S4;
+           2'b01: next_state<=S5;
+           default:next_state<=S0;
+            endcase
+        end
+          
+        S5:begin
+            casex({emergency_NS,emergency_EW})
+            2'b1x: next_state<=S4;
+            2'b01: next_state<=S5;
+            default:next_state<=S2;
+            endcase
+        end
+        default:next_state<=S0;
+        endcase
+    end
+  
+            
+  
+  // state tranistion at the clock edge - sequential logic i.e memory part of fsm that stores  the memory in the memory registors
+  always @(posedge(clk) or posedge(areset))
+    begin
+      if(areset)
+        state<=S0;
+      else
+        state<=next_state;
+    end
+  
+//  control logic to the the reset pin to the countor 
+  // when at the clock edge , the state updates to S0(stored as current state) , instant countor will start to count from 0 that is 0 in the first clock cycle and 49 in 50th clock cycle
+// the next state logic tells if count==49 , reset the count to zero 
+// so that when next clock edge comes the state will update to eithor S0 or S1 countor starts from 0 
+  
+ assign reset=(state==S0&&count==6'd49)||(state==S1&&count==6'd19)||(state==S2&&count==6'd49)||(state==S3&&count==6'd19)||(state==S4&&emergency_NS==0&&emergency_EW==0)||(state==S5&&emergency_NS==0&&emergency_EW==0);
+    
+  
+  // output logic 
+  always@(*)
+    begin
+      NS_green<=(state==S0)||(state==S4);
+      NS_yellow<=(state==S1);
+      NS_red<=(state==S2)||(state==S5)||(state==S3);
+      EW_green<=(state==S2)||(state==S5);
+      EW_yellow<=(state==S3);
+      EW_red<=(state==S0)||(state==S4)||(state==S1);
+        
+    end
+        
+        
+  
+  // the countor 
+  // when the current state is S0 , then countor counts from 0 to 49 
+  // when the state updates to S1 at the clock edge , the countor will count start from again 0 , that is needs to reset the count to 0 after the 50th clock cycle
+  // now the current state is S1 , countor will count from 0 to 19 
+  // the moment the count==19 , the next clock edge comes , count reset to again 0 and state updated to S2
+  // so the reset pin to the countor is the control logic suing combiantional logic
+  
+  
+  always@(posedge(clk) or posedge(areset))
+    begin
+      if(areset)
+        count<=6'd0;
+      else if(reset)
+        count<=6'd0;
+      else
+        count<=count+6'd1;
+        
+     end
+
+        
+        
+    
+
+endmodule
